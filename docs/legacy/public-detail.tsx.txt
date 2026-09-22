@@ -1,0 +1,14 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { configured, database } from '@/lib/server';
+import { dateLabel, type Post } from '@/lib/shared';
+export const dynamic = 'force-dynamic';
+export default async function Detail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!configured() || !/^[a-f0-9-]{36}$/.test(id)) notFound();
+  const { data, error } = await database().from('posts').select('*').eq('id', id).eq('status', 'approved').eq('visibility', 'public').maybeSingle();
+  if (error) throw new Error('게시글을 불러오지 못했어요.');
+  if (!data) notFound();
+  const post = data as Post;
+  return <div className="narrow"><Link className="back" href="/">← 우리 반 이야기</Link><article className="form-panel detail"><div className="post-meta"><span className="tag">{post.category}</span><time dateTime={post.created_at}>{dateLabel(post.created_at)}</time></div><h1 className="page-title">{post.title}</h1><p className="subtle">익명의 4반 친구</p><p className="prose">{post.content}</p></article>{post.reply ? <section className="reply-box"><span className="eyebrow">FROM YOUR CLASS REPS</span><h2>반장·부반장의 답변</h2><p className="prose">{post.reply}</p></section> : post.reply_requested ? <p className="notice">관리자의 답변을 기다리고 있어요.</p> : null}</div>;
+}

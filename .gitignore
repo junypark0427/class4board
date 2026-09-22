@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env*
+!.env.example
+*.tsbuildinfo
+test-results/
+.DS_Store
+
+# Local QA, environment secrets, previews and temporary logs
+.qa/
+*.log
+docs/previews/
+.vercel/
+.env.*
+!.env.example
