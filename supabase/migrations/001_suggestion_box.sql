@@ -1,5 +1,6 @@
--- Run once on a NEW Supabase project in SQL Editor. This is the first schema
--- for this project: the preceding public-board scaffold had no database migration.
+-- 사랑하는 4반 익명 게시판: 초기 설정 SQL
+-- Supabase SQL Editor에서 새 프로젝트에 한 번만 전체 실행하세요.
+-- 기존 공개 게시판 초안은 DB를 만든 적이 없어 데이터 이전 단계가 없습니다.
 begin;
 create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
@@ -64,11 +65,12 @@ revoke all on all tables in schema private from public, anon, authenticated;
 
 -- Authenticated is NOT synonymous with admin. Only allowlisted accounts can read.
 revoke all on public.posts, public.admin_members, public.admin_actions from public, anon, authenticated;
-grant select on public.posts, public.admin_members, public.admin_actions to anon, authenticated;
+grant select on public.posts, public.admin_members, public.admin_actions to authenticated;
 create policy admin_read_posts on public.posts for select to authenticated using ((select private.is_admin()));
 create policy admin_read_members on public.admin_members for select to authenticated using ((select private.is_admin()));
 create policy admin_read_actions on public.admin_actions for select to authenticated using ((select private.is_admin()));
--- No anonymous SELECT policy, and no client INSERT/UPDATE/DELETE grants or policies.
+-- anon has no table grant at all. Authenticated non-admins receive zero rows through RLS.
+-- No client INSERT/UPDATE/DELETE grants or policies exist.
 
 create function public.submit_post(
   p_category text, p_title text, p_content text, p_teacher_requested boolean,

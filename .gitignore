@@ -11,5 +11,6 @@ test-results/
 *.log
 docs/previews/
 .vercel/
+.netlify/
 .env.*
 !.env.example

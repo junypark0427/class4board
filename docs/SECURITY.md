@@ -8,6 +8,8 @@
 
 `lib/server.ts`는 `server-only`로 클라이언트 번들 유입을 차단합니다. 관리자 UI를 우회하더라도 DB의 RLS와 함수 내 allowlist 검사가 적용됩니다. 일반 authenticated 계정은 관리자 권한이 없습니다. 클라이언트에 보이는 publishable key는 비밀 키가 아닙니다.
 
+`/admin` 경로는 로그인 폼을 보여주기 위해 누구나 열 수 있지만 인증 전에는 의견 조회를 시작하지 않습니다. 실제 데이터 경계는 화면 표시 여부가 아니라 PostgreSQL 권한과 RLS입니다. `anon`에는 관리자 테이블의 SELECT 권한이 없고, `authenticated`에는 SELECT 권한만 주되 `admin_members`에 등록된 UID만 정책을 통과합니다. 직접 INSERT/UPDATE/DELETE 권한은 어느 브라우저 역할에도 없습니다.
+
 ## 테이블
 
 | 테이블 | 저장 정보 | 앱에서 접근 가능한 사용자 |

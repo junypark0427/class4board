@@ -38,7 +38,9 @@ test('server submission creates private unread opinion; cooldown is transactiona
 });
 test('anonymous cannot read content, members, audit, receipts or bypass submission API', async () => {
   await asRole('anon');
-  for (const table of ['posts','admin_members','admin_actions']) assert.equal((await db.query(`select * from public.${table}`)).rows.length,0);
+  for (const table of ['posts','admin_members','admin_actions']) {
+    await assert.rejects(db.query(`select * from public.${table}`), /permission denied/);
+  }
   await assert.rejects(db.exec('select * from private.receipts'), /permission denied/);
   await assert.rejects(db.exec("insert into public.posts(category,title,content) values('질문','제목','비인가 직접 제출')"), /permission denied/);
   await assert.rejects(db.query('select public.submit_post($1,$2,$3,$4,$5,$6,$7)', ['질문','제목','비인가 직접 제출',false,false,'c'.repeat(64),null]), /permission denied/);

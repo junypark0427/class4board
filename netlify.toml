@@ -1,0 +1,7 @@
+[build]
+  command = "pnpm build"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "11.19.0"
+  NETLIFY_NEXT_SKEW_PROTECTION = "true"

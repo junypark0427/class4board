@@ -12,7 +12,7 @@
 - 실제 Next.js API의 잘못된 Origin 403, 잘못된 입력 400, 16KB 초과 413, 짧은 확인번호 400, 미설정 503 확인.
 - 테스트용 Supabase 요청은 브라우저에서 가로채고 가상 응답을 반환했으며 실제 Supabase에 전송하지 않았습니다.
 
-아직 실제 Supabase 계정 로그인/원격 DB 연동이나 Vercel 배포를 검증한 것은 아닙니다. 배포 전 README의 실제 연결 점검을 진행하세요.
+아직 실제 Supabase 계정 로그인/원격 DB 연동이나 Netlify 배포를 검증한 것은 아닙니다. 배포 전 README의 실제 연결 점검을 진행하세요.
 
 ## 기본 검사 재실행
 
@@ -31,7 +31,7 @@ pnpm build
 ```sh
 NEXT_PUBLIC_SUPABASE_URL=https://class4-test.supabase.co \
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=test-publishable-key \
-SUPABASE_SERVICE_ROLE_KEY=test-service-key \
+SUPABASE_SECRET_KEY=test-service-key \
 COOLDOWN_SECRET=test-only-secret-not-a-real-key-123456789 \
 APP_ORIGIN=http://127.0.0.1:3001 \
 pnpm dev --port 3001
