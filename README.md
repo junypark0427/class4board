@@ -105,7 +105,7 @@ Next.js Route Handler가 필요하므로 정적 파일 호스팅이나 `output: 
 
 1. 프로젝트를 본인 Git 저장소에 올립니다. `.env.local`, `node_modules`, `.next`는 제외합니다.
 2. Netlify에서 **Add new project → Import an existing project**를 선택하고 `junypark0427/class4board` 저장소를 연결합니다.
-3. Base directory는 저장소 루트로 둡니다. `netlify.toml`에 따라 빌드 명령은 `pnpm build`, Node는 22, pnpm은 11.19.0이 됩니다. Publish directory나 Next.js 플러그인을 직접 지정하지 마세요.
+3. Base directory는 저장소 루트로 둡니다. `netlify.toml`에 따라 빌드 명령은 `pnpm build`, Publish directory는 `.next`, Node는 22, pnpm은 11.19.0이 됩니다. 별도 Functions directory나 Next.js 플러그인은 저장소에 추가하지 않습니다.
 4. Netlify **Project configuration → Environment variables**에 `.env.example`의 다섯 변수를 추가합니다. 민감한 값은 `netlify.toml`이나 GitHub에 넣지 않습니다.
 5. `APP_ORIGIN`은 최종 Production URL과 정확히 같게 입력합니다(예: `https://class4board.netlify.app`, 끝 `/` 없음). Deploy Preview URL은 매번 달라지므로 운영 Supabase 비밀값을 Preview에 제공하지 않는 것을 권장합니다.
 6. 첫 배포 후 실제 Production URL을 확인해 `APP_ORIGIN`이 다르면 수정하고 **Clear cache and deploy site**로 다시 배포합니다. `NEXT_PUBLIC_` 값 변경도 재빌드가 필요합니다.
