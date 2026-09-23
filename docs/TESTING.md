@@ -29,9 +29,9 @@ pnpm build
 이 검사는 `.env.local`이 없는 전용 테스트 환경에서만 실행하세요. 기본 포트 3000에는 설정 없는 빌드를 실행합니다. 포트 3001에는 아래 **가짜 테스트 설정**으로 개발 서버를 실행합니다. 값들은 실제 API 키가 아닙니다.
 
 ```sh
-NEXT_PUBLIC_SUPABASE_URL=https://class4-test.supabase.co \
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=test-publishable-key \
-SUPABASE_SECRET_KEY=test-service-key \
+SUPABASE_URL=https://class4-test.supabase.co \
+SUPABASE_PUBLISHABLE_KEY=test-publishable-key \
+DATABASE_ADMIN_KEY=test-service-key \
 COOLDOWN_SECRET=test-only-secret-not-a-real-key-123456789 \
 APP_ORIGIN=http://127.0.0.1:3001 \
 pnpm dev --port 3001

@@ -1,6 +1,8 @@
 'use client';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
+import { publicSupabaseKeyType } from './supabase-keys';
+import type { BrowserDatabaseConfig } from './server';
 let client: SupabaseClient<Database> | undefined;
 let initializationAttempted = false;
 
@@ -10,12 +12,6 @@ type DiagnosticError = {
   code?: string;
   status?: number;
 };
-
-function keyType(key: string) {
-  if (key.startsWith('sb_publishable_')) return 'publishable';
-  if (key.split('.').length === 3) return 'legacy-anon-jwt';
-  return 'unknown';
-}
 
 export function logAdminAuthError(stage: string, error: unknown) {
   if (process.env.NODE_ENV !== 'development') return;
@@ -28,17 +24,16 @@ export function logAdminAuthError(stage: string, error: unknown) {
   });
 }
 
-export function browserDatabase() {
+export function browserDatabase(config?: BrowserDatabaseConfig | null) {
   if (client) return client;
   if (initializationAttempted) return null;
-  initializationAttempted = true;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) {
+  if (!config) {
     logAdminAuthError('configuration', new Error('Supabase URL or publishable key is missing'));
     return null;
   }
+  initializationAttempted = true;
+
+  const { url, key } = config;
 
   let parsedUrl: URL;
   try {
@@ -51,8 +46,8 @@ export function browserDatabase() {
     return null;
   }
 
-  const publicKeyType = keyType(key);
-  if (publicKeyType === 'unknown') {
+  const publicKeyType = publicSupabaseKeyType(key);
+  if (!publicKeyType) {
     logAdminAuthError('configuration', new Error('Supabase client key must be a publishable or legacy anon key'));
     return null;
   }

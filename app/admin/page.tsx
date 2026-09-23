@@ -1,2 +1,8 @@
 import AdminApp from './panel';
-export default function AdminPage() { return <AdminApp/>; }
+import { browserDatabaseConfig } from '@/lib/server';
+
+export const dynamic = 'force-dynamic';
+
+export default function AdminPage() {
+  return <AdminApp databaseConfig={browserDatabaseConfig()}/>;
+}

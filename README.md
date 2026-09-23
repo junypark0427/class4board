@@ -58,14 +58,16 @@ set display_name = excluded.display_name;
 
 브라우저에 표시되는 오류는 계정 존재 여부나 내부 설정을 노출하지 않도록 항상 일반 문구를 사용합니다. 로컬 개발 모드에서는 브라우저 개발자 도구의 Console에 `[admin-auth]` 로그로 Supabase의 실제 `code`, `status`, `message`가 기록됩니다. URL 전체와 키 값은 기록하지 않으며 프로젝트 origin과 키 종류만 표시합니다.
 
-1. Netlify의 `NEXT_PUBLIC_SUPABASE_URL`이 관리자 사용자를 만든 **같은 Supabase 프로젝트**의 Project URL인지 확인합니다.
-2. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`에는 그 프로젝트의 publishable key(`sb_publishable_…`) 또는 legacy `anon` key만 넣습니다. secret/service role key는 절대 넣지 않습니다. 값을 수정하면 새 배포를 실행해야 합니다.
+1. Netlify의 `SUPABASE_URL`이 관리자 사용자를 만든 **같은 Supabase 프로젝트**의 Project URL인지 확인합니다.
+2. `SUPABASE_PUBLISHABLE_KEY`에는 그 프로젝트의 publishable key(`sb_publishable_…`) 또는 legacy `anon` key만 넣습니다. secret/service role key는 절대 넣지 않습니다. 값을 수정하면 새 배포를 실행해야 합니다.
 3. Supabase **Authentication → Users**에서 해당 사용자의 `Email confirmed at` 또는 `Confirmed at`이 비어 있지 않은지 확인합니다. 확인되지 않은 사용자는 기본 설정에서 로그인할 수 없습니다.
 4. **Authentication → Providers → Email**에서 Email provider가 활성화되어 있는지 확인합니다. 공개 가입 허용은 꺼도 기존 관리자의 이메일/비밀번호 로그인에는 영향을 주지 않습니다.
 
 로그의 `code`가 `email_not_confirmed`이면 이메일 확인을 마쳐야 합니다. `invalid_credentials`이면 Supabase는 계정 없음과 잘못된 비밀번호를 의도적으로 구분하지 않으므로 이메일과 비밀번호를 함께 다시 확인합니다. `Invalid API key` 또는 네트워크 오류면 먼저 위의 URL·키 조합을 고칩니다.
 
-`NEXT_PUBLIC_` 변수에 `sb_secret_…` 키를 잘못 넣은 경우 그 키는 이미 브라우저 번들에 노출된 것으로 간주해야 합니다. 올바른 publishable key로 교체한 뒤 새 secret key를 발급하고, 서버 전용 `SUPABASE_SECRET_KEY`를 새 값으로 바꿔 재배포한 다음 이전 secret key를 폐기하세요.
+이 프로젝트는 Supabase 설정에 `NEXT_PUBLIC_` 환경변수를 사용하지 않습니다. 서버가 URL과 publishable key를 검증하고 공개 가능한 두 값만 관리자 화면에 전달합니다. secret key를 공개 키 자리에 잘못 넣어도 브라우저 클라이언트를 만들지 않습니다.
+
+과거에 `NEXT_PUBLIC_` 변수에 secret key를 넣었다면 그 키는 이미 브라우저 번들에 노출된 것으로 간주해야 합니다. 올바른 publishable key로 교체한 뒤 새 secret key를 발급하고, 서버 전용 `DATABASE_ADMIN_KEY`를 새 값으로 바꿔 재배포한 다음 이전 secret key를 폐기하세요.
 
 복구 메일이 동작하지 않을 때는 관리자 계정을 안전하게 다시 만들 수 있습니다.
 
@@ -87,15 +89,15 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 | 변수 | 값 | 노출 범위 |
 |---|---|---|
-| NEXT_PUBLIC_SUPABASE_URL | 프로젝트 URL | 공개 가능 |
-| NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | publishable key 또는 legacy anon key | 공개 가능, RLS로 권한 제한 |
-| SUPABASE_SECRET_KEY | 현재 `sb_secret_…` 키 또는 legacy service_role key | **서버 전용 비밀** |
+| SUPABASE_URL | 프로젝트 URL | 서버가 형식을 확인한 뒤 origin만 관리자 화면에 전달 |
+| SUPABASE_PUBLISHABLE_KEY | publishable key 또는 legacy anon key | 서버가 공개 키임을 확인한 뒤 관리자 화면에 전달, RLS로 권한 제한 |
+| DATABASE_ADMIN_KEY | 현재 Supabase secret key 또는 legacy service_role key | **서버 전용 비밀** |
 | COOLDOWN_SECRET | 위 명령으로 생성한 64자리 무작위 문자열 | **서버 전용 비밀** |
 | APP_ORIGIN | `http://localhost:3000` | 서버 설정 |
 
 `APP_ORIGIN`은 실제 브라우저 주소의 origin과 정확히 같아야 합니다. 끝의 `/`는 빼세요. `localhost`와 `127.0.0.1`은 다른 주소입니다. 설정을 바꾼 뒤 서버를 재시작하세요.
 
-`NEXT_PUBLIC_`가 붙은 값은 브라우저에 포함됩니다. secret/service role 키, 쿠키 서명 키, 비밀번호에 이 접두어를 붙이지 마세요. `.env.local`은 Git에서 제외되어 있습니다.
+secret/service role 키, 쿠키 서명 키, 비밀번호에는 절대로 `NEXT_PUBLIC_` 접두어를 붙이지 마세요. `.env.local`은 Git에서 제외되어 있습니다.
 
 ## 5. 데이터 접근 구조
 
@@ -128,9 +130,9 @@ Next.js Route Handler가 필요하므로 정적 파일 호스팅이나 `output: 
 1. 프로젝트를 본인 Git 저장소에 올립니다. `.env.local`, `node_modules`, `.next`는 제외합니다.
 2. Netlify에서 **Add new project → Import an existing project**를 선택하고 `junypark0427/class4board` 저장소를 연결합니다.
 3. Base directory는 저장소 루트로 둡니다. `netlify.toml`에 따라 빌드 명령은 `pnpm build`, Publish directory는 `.next`, Node는 22, pnpm은 11.19.0이 됩니다. 별도 Functions directory나 Next.js 플러그인은 저장소에 추가하지 않습니다.
-4. Netlify **Project configuration → Environment variables**에 `.env.example`의 다섯 변수를 추가합니다. 민감한 값은 `netlify.toml`이나 GitHub에 넣지 않습니다.
+4. Netlify **Project configuration → Environment variables**에 `.env.example`의 다섯 변수를 추가합니다. 기존 `NEXT_PUBLIC_SUPABASE_URL`과 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`는 삭제하고 각각 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`로 등록합니다. 민감한 값은 `netlify.toml`이나 GitHub에 넣지 않습니다.
 5. `APP_ORIGIN`은 최종 Production URL과 정확히 같게 입력합니다(예: `https://class4board.netlify.app`, 끝 `/` 없음). Deploy Preview URL은 매번 달라지므로 운영 Supabase 비밀값을 Preview에 제공하지 않는 것을 권장합니다.
-6. 첫 배포 후 실제 Production URL을 확인해 `APP_ORIGIN`이 다르면 수정하고 **Clear cache and deploy site**로 다시 배포합니다. `NEXT_PUBLIC_` 값 변경도 재빌드가 필요합니다.
+6. 첫 배포 후 실제 Production URL을 확인해 `APP_ORIGIN`이 다르면 수정하고 **Clear cache and deploy site**로 다시 배포합니다. Supabase 설정값을 변경한 경우에도 다시 배포합니다.
 7. Supabase Authentication URL 설정의 Site URL을 최종 주소로 맞춥니다. 현재 이메일/비밀번호 로그인은 리디렉션 흐름을 사용하지 않습니다.
 8. 아래 실제 연결 점검을 마친 뒤에만 친구들에게 주소를 공유합니다.
 
@@ -142,10 +144,11 @@ Next.js Route Handler가 필요하므로 정적 파일 호스팅이나 `output: 
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm test:bundle-security
 pnpm start
 ```
 
-자동 테스트는 메모리 PostgreSQL(PGlite)에서 실제 스키마와 역할·RLS를 적용해 권한, 동등 관리자 접근, 수정 충돌, 확인번호 조회, 도배 제한을 검사합니다. 실제 Supabase 인증 서비스나 Netlify 배포를 대신 검증하는 테스트는 아닙니다.
+자동 테스트는 메모리 PostgreSQL(PGlite)에서 실제 스키마와 역할·RLS를 적용해 권한, 동등 관리자 접근, 수정 충돌, 확인번호 조회, 도배 제한을 검사합니다. 추가 보안 검사는 client component가 환경변수를 읽지 않는지, 공개 키 검증이 secret key를 거부하는지, production 빌드 산출물에 Supabase secret 표시가 없는지 확인합니다. 실제 Supabase 인증 서비스나 Netlify 배포를 대신 검증하는 테스트는 아닙니다.
 
 **실제 연결 후 점검**
 

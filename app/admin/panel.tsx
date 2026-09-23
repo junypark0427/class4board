@@ -1,9 +1,10 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { browserDatabase, logAdminAuthError } from '@/lib/browser';
+import type { BrowserDatabaseConfig } from '@/lib/server';
 import { categories, dateLabel, statusLabels, type Post } from '@/lib/shared';
 type Action = { id: number; actor_name: string; created_at: string; changes: { status?: [keyof typeof statusLabels, keyof typeof statusLabels]; hidden?: boolean; admin_note_changed?: boolean; reply_changed?: boolean } };
-export default function AdminApp() {
+export default function AdminApp({ databaseConfig }: { databaseConfig: BrowserDatabaseConfig | null }) {
   const [phase, setPhase] = useState<'loading'|'login'|'admin'>('loading');
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
@@ -15,7 +16,7 @@ export default function AdminApp() {
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
   useEffect(() => {
-    const db = browserDatabase(); if (!db) { setPhase('login'); return; }
+    const db = browserDatabase(databaseConfig); if (!db) { setPhase('login'); return; }
     let alive = true;
     async function check() {
       try {
@@ -41,7 +42,7 @@ export default function AdminApp() {
     void check();
     const { data: { subscription } } = db.auth.onAuthStateChange(() => { setTimeout(() => { if (alive) void check(); }, 0); });
     return () => { alive = false; subscription.unsubscribe(); };
-  }, []);
+  }, [databaseConfig]);
   const load = useCallback(async () => {
     const db = browserDatabase(); if (!db) return;
     const id = ++requestId.current; setLoading(true); setMessage('');
@@ -59,7 +60,7 @@ export default function AdminApp() {
   }, [category, status, hidden, page]);
   useEffect(() => { if (phase === 'admin') void load(); }, [phase, load]);
   async function login(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault(); const db = browserDatabase(); if (!db) return;
+    e.preventDefault(); const db = browserDatabase(databaseConfig); if (!db) return;
     const fd = new FormData(e.currentTarget); setBusy(true); setMessage('');
     try {
       const { data, error } = await db.auth.signInWithPassword({ email:String(fd.get('email')).trim(),password:String(fd.get('password')) });
@@ -79,7 +80,7 @@ export default function AdminApp() {
     finally { setBusy(false); }
   }
   if (phase === 'loading') return <div className="narrow empty" role="status">관리자 계정을 확인하고 있어요…</div>;
-  if (phase === 'login') return <div className="login-layout"><div><p className="eyebrow">TOGETHER, WE LISTEN</p><h1>친구들의 마음을<br/><span>함께 살펴봐요.</span></h1><p className="lead">반장과 부반장이 함께 쓰는 관리 공간이에요.<br/>각자 계정으로 로그인해주세요.</p><p className="intro-note">두 관리자에게 같은 관리 권한이 있어요.<br/>의견과 메모는 학생들에게 공개되지 않아요.</p></div><form className="form-panel" onSubmit={login}><span className="tag">반장 · 부반장 전용</span><h2>관리자 로그인</h2>{!browserDatabase() && <p className="notice">건의함 연결을 준비 중이에요. 연결 후 로그인할 수 있어요.</p>}<label className="field">관리자 이메일<input type="email" name="email" autoComplete="username" required placeholder="관리자 계정 이메일"/></label><label className="field">비밀번호<input type="password" name="password" autoComplete="current-password" required maxLength={128} placeholder="비밀번호 입력"/></label>{message && <p className="error" role="alert">{message}</p>}<button className="button primary full" disabled={busy || !browserDatabase()}>{busy ? '로그인 중…' : '로그인'}</button><p className="helper">학생은 로그인하지 않아도 의견을 보낼 수 있어요.</p></form></div>;
+  if (phase === 'login') return <div className="login-layout"><div><p className="eyebrow">TOGETHER, WE LISTEN</p><h1>친구들의 마음을<br/><span>함께 살펴봐요.</span></h1><p className="lead">반장과 부반장이 함께 쓰는 관리 공간이에요.<br/>각자 계정으로 로그인해주세요.</p><p className="intro-note">두 관리자에게 같은 관리 권한이 있어요.<br/>의견과 메모는 학생들에게 공개되지 않아요.</p></div><form className="form-panel" onSubmit={login}><span className="tag">반장 · 부반장 전용</span><h2>관리자 로그인</h2>{!databaseConfig && <p className="notice">건의함 연결을 준비 중이에요. 연결 후 로그인할 수 있어요.</p>}<label className="field">관리자 이메일<input type="email" name="email" autoComplete="username" required placeholder="관리자 계정 이메일"/></label><label className="field">비밀번호<input type="password" name="password" autoComplete="current-password" required maxLength={128} placeholder="비밀번호 입력"/></label>{message && <p className="error" role="alert">{message}</p>}<button className="button primary full" disabled={busy || !databaseConfig}>{busy ? '로그인 중…' : '로그인'}</button><p className="helper">학생은 로그인하지 않아도 의견을 보낼 수 있어요.</p></form></div>;
   return <div className="container admin-container"><div className="admin-heading"><div><p className="eyebrow">CLASS 4 · INBOX</p><h1 className="page-title">우리 반의 목소리</h1><p className="subtle">{name}님, 반장·부반장이 함께 확인하는 공간이에요.</p></div><button className="button secondary" onClick={logout} disabled={busy}>로그아웃</button></div>
     <div className="status-guide">미확인 <span>→</span> 확인 완료 <span>→</span> 선생님께 전달 <span>→</span> 처리 완료<small>전달이 필요 없는 의견은 바로 처리 완료로 바꿀 수 있어요.</small></div>
     <div className="admin-filters"><label>카테고리<select value={category} onChange={e=>{setCategory(e.target.value);setPage(0);}}><option value="">전체 카테고리</option>{categories.map(c=><option key={c}>{c}</option>)}</select></label><label>처리 상태<select value={status} onChange={e=>{setStatus(e.target.value);setPage(0);}}><option value="">전체 상태</option>{Object.entries(statusLabels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label><label>표시 범위<select value={hidden} onChange={e=>{setHidden(e.target.value);setPage(0);}}><option value="active">숨김 제외</option><option value="hidden">숨긴 의견</option><option value="all">모든 의견</option></select></label><button className="button secondary" onClick={()=>void load()}>새로고침</button></div>
