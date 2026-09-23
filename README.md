@@ -65,6 +65,8 @@ set display_name = excluded.display_name;
 
 로그의 `code`가 `email_not_confirmed`이면 이메일 확인을 마쳐야 합니다. `invalid_credentials`이면 Supabase는 계정 없음과 잘못된 비밀번호를 의도적으로 구분하지 않으므로 이메일과 비밀번호를 함께 다시 확인합니다. `Invalid API key` 또는 네트워크 오류면 먼저 위의 URL·키 조합을 고칩니다.
 
+`NEXT_PUBLIC_` 변수에 `sb_secret_…` 키를 잘못 넣은 경우 그 키는 이미 브라우저 번들에 노출된 것으로 간주해야 합니다. 올바른 publishable key로 교체한 뒤 새 secret key를 발급하고, 서버 전용 `SUPABASE_SECRET_KEY`를 새 값으로 바꿔 재배포한 다음 이전 secret key를 폐기하세요.
+
 복구 메일이 동작하지 않을 때는 관리자 계정을 안전하게 다시 만들 수 있습니다.
 
 1. Supabase **Authentication → Users → Add user → Create new user**를 엽니다.

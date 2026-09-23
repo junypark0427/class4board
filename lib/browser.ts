@@ -51,15 +51,16 @@ export function browserDatabase() {
     return null;
   }
 
-  if (key.trim().length < 20) {
-    logAdminAuthError('configuration', new Error('Supabase publishable key has an invalid format'));
+  const publicKeyType = keyType(key);
+  if (publicKeyType === 'unknown') {
+    logAdminAuthError('configuration', new Error('Supabase client key must be a publishable or legacy anon key'));
     return null;
   }
 
   if (process.env.NODE_ENV === 'development') {
     console.info('[admin-auth] Supabase configuration', {
       origin: parsedUrl.origin,
-      keyType: keyType(key),
+      keyType: publicKeyType,
     });
   }
 
