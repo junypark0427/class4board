@@ -54,6 +54,26 @@ set display_name = excluded.display_name;
 
 비밀번호를 분실하면 프로젝트 소유자가 Supabase 관리 화면에서 재설정 절차를 진행하세요. 이 앱에는 공개 회원가입이나 관리자 계정 생성 기능이 없습니다. 공용 컴퓨터에서는 사용 후 로그아웃하세요.
 
+### 관리자 로그인이 안 될 때
+
+브라우저에 표시되는 오류는 계정 존재 여부나 내부 설정을 노출하지 않도록 항상 일반 문구를 사용합니다. 로컬 개발 모드에서는 브라우저 개발자 도구의 Console에 `[admin-auth]` 로그로 Supabase의 실제 `code`, `status`, `message`가 기록됩니다. URL 전체와 키 값은 기록하지 않으며 프로젝트 origin과 키 종류만 표시합니다.
+
+1. Netlify의 `NEXT_PUBLIC_SUPABASE_URL`이 관리자 사용자를 만든 **같은 Supabase 프로젝트**의 Project URL인지 확인합니다.
+2. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`에는 그 프로젝트의 publishable key(`sb_publishable_…`) 또는 legacy `anon` key만 넣습니다. secret/service role key는 절대 넣지 않습니다. 값을 수정하면 새 배포를 실행해야 합니다.
+3. Supabase **Authentication → Users**에서 해당 사용자의 `Email confirmed at` 또는 `Confirmed at`이 비어 있지 않은지 확인합니다. 확인되지 않은 사용자는 기본 설정에서 로그인할 수 없습니다.
+4. **Authentication → Providers → Email**에서 Email provider가 활성화되어 있는지 확인합니다. 공개 가입 허용은 꺼도 기존 관리자의 이메일/비밀번호 로그인에는 영향을 주지 않습니다.
+
+로그의 `code`가 `email_not_confirmed`이면 이메일 확인을 마쳐야 합니다. `invalid_credentials`이면 Supabase는 계정 없음과 잘못된 비밀번호를 의도적으로 구분하지 않으므로 이메일과 비밀번호를 함께 다시 확인합니다. `Invalid API key` 또는 네트워크 오류면 먼저 위의 URL·키 조합을 고칩니다.
+
+복구 메일이 동작하지 않을 때는 관리자 계정을 안전하게 다시 만들 수 있습니다.
+
+1. Supabase **Authentication → Users → Add user → Create new user**를 엽니다.
+2. 관리자 이메일과 새 비밀번호를 입력하고 **Auto Confirm User**를 켠 뒤 생성합니다.
+3. 새 사용자의 UID를 복사하고, 위의 `admin_members` 등록 SQL로 새 UID를 먼저 추가합니다.
+4. 새 계정으로 `/admin` 로그인을 확인한 다음에만 이전 관리자 행과 이전 Auth 사용자를 정리합니다.
+
+UID를 새로 등록해도 RLS와 두 관리자 동등 권한 구조는 그대로 유지됩니다. 비밀번호나 secret key를 SQL, 소스 코드, 개발 로그에 넣지 마세요.
+
 ## 4. 환경 변수 설정
 
 ```sh

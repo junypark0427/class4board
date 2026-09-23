@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { browserDatabase } from '@/lib/browser';
+import { browserDatabase, logAdminAuthError } from '@/lib/browser';
 import { categories, dateLabel, statusLabels, type Post } from '@/lib/shared';
 type Action = { id: number; actor_name: string; created_at: string; changes: { status?: [keyof typeof statusLabels, keyof typeof statusLabels]; hidden?: boolean; admin_note_changed?: boolean; reply_changed?: boolean } };
 export default function AdminApp() {
@@ -19,14 +19,24 @@ export default function AdminApp() {
     let alive = true;
     async function check() {
       try {
-        const { data: { user } } = await db!.auth.getUser();
+        const { data: { user }, error: userError } = await db!.auth.getUser();
         if (!alive) return;
+        if (userError) {
+          logAdminAuthError('session-validation', userError);
+          requestId.current++; setPosts([]); setSelected(null); setPhase('login');
+          setMessage('로그인 상태를 확인하지 못했어요. 다시 로그인해주세요.');
+          return;
+        }
         if (!user) { requestId.current++; setPosts([]); setSelected(null); setPhase('login'); return; }
         const { data, error } = await db!.from('admin_members').select('display_name').eq('user_id',user.id).maybeSingle();
         if (!alive) return;
-        if (error || !data) { requestId.current++; setPosts([]); setSelected(null); setPhase('login'); setMessage('관리자 권한을 확인할 수 없어요. 계정 등록 상태를 확인해주세요.'); await db!.auth.signOut(); }
+        if (error || !data) {
+          if (error) logAdminAuthError('admin-membership', error);
+          else logAdminAuthError('admin-membership', new Error('Authenticated user is not registered in admin_members'));
+          requestId.current++; setPosts([]); setSelected(null); setPhase('login'); setMessage('관리자 권한을 확인할 수 없어요. 계정 등록 상태를 확인해주세요.'); await db!.auth.signOut();
+        }
         else { setName(data.display_name); setPhase('admin'); }
-      } catch { if (alive) { setPhase('login'); setMessage('연결을 확인하고 다시 로그인해주세요.'); } }
+      } catch (error) { logAdminAuthError('session-check', error); if (alive) { setPhase('login'); setMessage('연결을 확인하고 다시 로그인해주세요.'); } }
     }
     void check();
     const { data: { subscription } } = db.auth.onAuthStateChange(() => { setTimeout(() => { if (alive) void check(); }, 0); });
@@ -51,8 +61,17 @@ export default function AdminApp() {
   async function login(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); const db = browserDatabase(); if (!db) return;
     const fd = new FormData(e.currentTarget); setBusy(true); setMessage('');
-    try { const { error } = await db.auth.signInWithPassword({ email:String(fd.get('email')).trim(),password:String(fd.get('password')) }); if (error) setMessage('로그인하지 못했어요. 이메일과 비밀번호를 확인하거나 잠시 후 다시 시도해주세요.'); }
-    catch { setMessage('연결을 확인하고 다시 시도해주세요.'); } finally { setBusy(false); }
+    try {
+      const { data, error } = await db.auth.signInWithPassword({ email:String(fd.get('email')).trim(),password:String(fd.get('password')) });
+      if (error) {
+        logAdminAuthError('password-sign-in', error);
+        setMessage('로그인하지 못했어요. 이메일과 비밀번호를 확인하거나 잠시 후 다시 시도해주세요.');
+      } else if (!data.session || !data.user) {
+        logAdminAuthError('password-sign-in', new Error('Supabase returned no session after sign-in'));
+        setMessage('로그인하지 못했어요. 이메일과 비밀번호를 확인하거나 잠시 후 다시 시도해주세요.');
+      }
+    }
+    catch (error) { logAdminAuthError('password-sign-in-request', error); setMessage('연결을 확인하고 다시 시도해주세요.'); } finally { setBusy(false); }
   }
   async function logout() {
     setBusy(true);
