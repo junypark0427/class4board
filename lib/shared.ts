@@ -14,8 +14,13 @@ export type Post = {
   id: string; category: string; title: string; content: string;
   teacher_requested: boolean; reply_requested: boolean;
   status: 'unread' | 'reviewed' | 'forwarded' | 'completed';
-  hidden: boolean; admin_note: string; reply: string;
+  hidden: boolean; is_public: boolean; published_at: string | null;
+  admin_note: string; reply: string;
   created_at: string; updated_at: string; version: number;
+};
+export type PublicPost = Pick<Post, 'category' | 'title' | 'content' | 'status' | 'reply' | 'created_at' | 'updated_at'> & {
+  post_id: string;
+  published_at: string;
 };
 export const statusLabels = { unread: '미확인', reviewed: '확인 완료', forwarded: '선생님께 전달', completed: '처리 완료' };
 export function dateLabel(date: string) {
