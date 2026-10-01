@@ -1,190 +1,83 @@
 # 사랑하는 4반 익명 게시판
 
-학생 의견은 **기본 비공개로 접수**되고, 반장·부반장이 검토해 승인한 글만 익명 게시판에 공개됩니다.
-댓글·좋아요·학생 간 상호작용은 제공하지 않습니다.
+두 공간을 운영합니다. **익명 건의함**은 학생이 보낸 의견을 반장·부반장만 읽고 처리합니다. **4반 한마디**는 짧은 익명 글을 관리자가 확인한 뒤 승인한 것만 공개합니다. 댓글·좋아요·학생 계정은 없습니다.
 
-## 현재 상태
+## 화면
 
-- Next.js + TypeScript + Supabase 프로젝트. 학생 폼·승인 게시판·결과 확인·관리자 화면·SQL 보안 규칙 구현.
-- 운영 서비스는 Netlify와 Supabase에 연결되어 있습니다. 새 환경에 설치할 때만 아래 초기 설정을 따르세요.
-- 연결 전에도 화면을 실행할 수 있지만 제출과 로그인은 비활성화됩니다. 가짜 저장 성공을 표시하지 않습니다.
-- 최신 설계 변경 내용은 `docs/CHANGELOG.md`, 보안 구조는 `docs/SECURITY.md`를 보세요.
+| 주소 | 기능 |
+|---|---|
+| `/` | 두 공간 선택 |
+| `/suggestions` | 비공개 익명 건의함 제출 (`/write`도 기존 링크로 유지) |
+| `/result` | 건의함 비밀 확인번호로 처리 상태·답변 조회 |
+| `/board` | 승인된 4반 한마디 카드 목록 |
+| `/board/write` | 익명 한마디 제출, 관리자 승인 전 비공개 |
+| `/admin` | 반장·부반장 로그인, 건의함 처리와 한마디 승인 |
 
-## 1. 화면부터 실행하기
+## 로컬 실행
 
-Node.js 22 이상과 pnpm 11을 설치한 다음 터미널에서 실행합니다.
+Node.js 22 이상과 pnpm 11이 필요합니다.
 
 ```sh
-cd ~/Documents/Projects/class4board
-npm install -g pnpm@11.19.0
+cd /Users/parkjunhoo/Documents/Projects/class4board
 pnpm install --frozen-lockfile
+cp .env.example .env.local
+# .env.local에 실제 프로젝트 설정을 입력합니다. 파일은 Git에 포함되지 않습니다.
 pnpm dev
 ```
 
-- 학생 제출 화면: http://localhost:3000
-- 승인된 익명 게시판: http://localhost:3000/board
-- 관리자 화면: http://localhost:3000/admin
-- 비밀 확인번호 조회: http://localhost:3000/result
-- 이용 안내: http://localhost:3000/privacy
+연결 값이 없으면 화면은 볼 수 있지만 제출과 로그인이 비활성화됩니다. 가짜 저장 성공을 표시하지 않습니다.
 
-기존 `node_modules`가 있다면 재설치는 생략할 수 있습니다. 이미 3000번 포트에서 미리보기가 켜져 있다면 해당 미리보기를 종료하고 개발 서버를 실행하세요.
+## Supabase 데이터베이스
 
-## 2. Supabase 프로젝트 만들기
+기존 운영 DB는 **001, 002를 다시 실행하지 마세요.** Supabase 프로젝트의 **SQL Editor → New query**에서 [`supabase/migrations/003_class_messages.sql`](supabase/migrations/003_class_messages.sql) 전체를 붙여넣고 한 번 실행합니다. 기존 `posts`, `admin_actions`, 비밀 확인번호, 과거 공개 사본은 삭제하지 않습니다. 003은 기존 건의함 공개 사본의 익명 읽기 권한을 제거하고, `class_messages`와 별도 작업 기록·RLS·제출/관리 함수를 추가합니다. 앱 배포 전에 적용하는 것이 좋습니다.
 
-1. Supabase에서 새 프로젝트를 만듭니다. 이 앱 전용 프로젝트를 권장합니다.
-2. 새 프로젝트에서는 [`supabase/migrations/001_suggestion_box.sql`](supabase/migrations/001_suggestion_box.sql)을 실행한 뒤 [`supabase/migrations/002_admin_approved_board.sql`](supabase/migrations/002_admin_approved_board.sql)을 순서대로 실행합니다.
-3. 이미 운영 중인 건의함에는 **002 파일만** 실행하세요. 기존 글은 모두 비공개로 유지되며 삭제되거나 덮어써지지 않습니다.
-4. Data API에 `private` 스키마를 노출하지 마세요. `public`만 사용합니다.
-5. Authentication 설정에서 공개 회원가입(Allow new users to sign up)과 Anonymous Sign-Ins를 끕니다. 학생은 Supabase Auth 계정을 만들지 않습니다.
+새 Supabase 프로젝트를 처음부터 만드는 경우에는 `001_suggestion_box.sql` → `002_admin_approved_board.sql` → `003_class_messages.sql` 순서로 실행합니다. Data API에 `private` 스키마를 노출하지 말고, **Authentication → Providers**에서 공개 회원가입과 익명 Auth 가입을 끕니다. 학생은 Supabase Auth를 사용하지 않습니다.
 
-## 3. 반장·부반장 계정 등록
-
-1. Supabase Authentication → Users에서 **서로 다른 두 이메일/비밀번호 계정**을 직접 생성합니다. `Add user`에서 직접 만들거나 각 관리자에게 초대 메일을 보내고, 이메일 확인이 완료되도록 합니다. 이 이메일은 관리자 로그인에만 사용됩니다.
-2. 각 계정의 User UID를 복사해 SQL Editor에서 아래 쿼리에 넣습니다. 비밀번호는 SQL이나 소스 코드에 넣지 않습니다.
+반장과 부반장은 **Authentication → Users → Add user**에서 서로 다른 이메일·비밀번호로 각각 생성하고 이메일 확인을 완료합니다. 두 User UID를 아래 SQL로 등록합니다. 비밀번호는 SQL이나 Git에 넣지 않습니다.
 
 ```sql
 insert into public.admin_members (user_id, display_name)
 values
-  ('반장_USER_UID로_교체', '반장'),
-  ('부반장_USER_UID로_교체', '부반장')
-on conflict (user_id) do update
-set display_name = excluded.display_name;
+  ('반장_USER_UID', '반장'),
+  ('부반장_USER_UID', '부반장')
+on conflict (user_id) do update set display_name = excluded.display_name;
 ```
 
-두 계정은 같은 권한을 가집니다. 이메일 주소, 표시 이름, 가입 시 입력한 metadata만으로는 관리자 권한이 생기지 않습니다. 로그인 JWT의 `auth.uid()`가 `admin_members.user_id`에 등록되어 있는지 DB에서 매번 확인합니다. 관리자를 해제하려면 해당 UID 행을 `admin_members`에서 삭제하세요.
+두 계정은 동일한 권한을 가집니다. 이메일이나 Auth 로그인만으로 관리자 권한이 생기지 않고, DB가 `auth.uid()`와 `admin_members.user_id`의 일치를 검사합니다. 비밀번호가 맞는데 로그인이 안 되면 **Authentication → Users**의 이메일 확인 상태, **Providers → Email** 활성화 상태, Netlify의 `SUPABASE_URL`/`SUPABASE_PUBLISHABLE_KEY`가 같은 Supabase 프로젝트의 값인지 확인하세요. 로컬 개발 모드의 브라우저 Console에는 `[admin-auth]` 코드·상태만 진단용으로 표시됩니다. 운영 화면은 일반 오류 문구를 유지합니다.
 
-비밀번호를 분실하면 프로젝트 소유자가 Supabase 관리 화면에서 재설정 절차를 진행하세요. 이 앱에는 공개 회원가입이나 관리자 계정 생성 기능이 없습니다. 공용 컴퓨터에서는 사용 후 로그아웃하세요.
+## 환경 변수
 
-### 관리자 로그인이 안 될 때
+`.env.example`의 다섯 변수만 사용합니다.
 
-브라우저에 표시되는 오류는 계정 존재 여부나 내부 설정을 노출하지 않도록 항상 일반 문구를 사용합니다. 로컬 개발 모드에서는 브라우저 개발자 도구의 Console에 `[admin-auth]` 로그로 Supabase의 실제 `code`, `status`, `message`가 기록됩니다. URL 전체와 키 값은 기록하지 않으며 프로젝트 origin과 키 종류만 표시합니다.
+| 변수 | 용도 |
+|---|---|
+| `SUPABASE_URL` | Supabase 프로젝트 URL |
+| `SUPABASE_PUBLISHABLE_KEY` | 공개 가능한 publishable key 또는 legacy anon key |
+| `DATABASE_ADMIN_KEY` | **서버 전용** Supabase secret/service role key |
+| `COOLDOWN_SECRET` | **서버 전용** 32자 이상의 무작위 문자열 |
+| `APP_ORIGIN` | 실제 사이트 origin, 예: `https://class4board.netlify.app` (끝 `/` 없음) |
 
-1. Netlify의 `SUPABASE_URL`이 관리자 사용자를 만든 **같은 Supabase 프로젝트**의 Project URL인지 확인합니다.
-2. `SUPABASE_PUBLISHABLE_KEY`에는 그 프로젝트의 publishable key(`sb_publishable_…`) 또는 legacy `anon` key만 넣습니다. secret/service role key는 절대 넣지 않습니다. 값을 수정하면 새 배포를 실행해야 합니다.
-3. Supabase **Authentication → Users**에서 해당 사용자의 `Email confirmed at` 또는 `Confirmed at`이 비어 있지 않은지 확인합니다. 확인되지 않은 사용자는 기본 설정에서 로그인할 수 없습니다.
-4. **Authentication → Providers → Email**에서 Email provider가 활성화되어 있는지 확인합니다. 공개 가입 허용은 꺼도 기존 관리자의 이메일/비밀번호 로그인에는 영향을 주지 않습니다.
+서버는 URL과 공개 키 형식을 확인한 뒤 두 값만 관리자 클라이언트에 전달합니다. `DATABASE_ADMIN_KEY`, `COOLDOWN_SECRET` 및 비밀번호에 `NEXT_PUBLIC_` 접두어를 붙이지 마세요. `.env.local`과 빌드 산출물은 `.gitignore`에서 제외됩니다. 비밀 키는 `lib/server.ts`의 server-only 모듈에서만 읽습니다.
 
-로그의 `code`가 `email_not_confirmed`이면 이메일 확인을 마쳐야 합니다. `invalid_credentials`이면 Supabase는 계정 없음과 잘못된 비밀번호를 의도적으로 구분하지 않으므로 이메일과 비밀번호를 함께 다시 확인합니다. `Invalid API key` 또는 네트워크 오류면 먼저 위의 URL·키 조합을 고칩니다.
+## 접근 권한과 운영
 
-이 프로젝트는 Supabase 설정에 `NEXT_PUBLIC_` 환경변수를 사용하지 않습니다. 서버가 URL과 publishable key를 검증하고 공개 가능한 두 값만 관리자 화면에 전달합니다. secret key를 공개 키 자리에 잘못 넣어도 브라우저 클라이언트를 만들지 않습니다.
+- 익명 건의함은 `/api/posts`가 길이·출처·도배 제한을 확인한 뒤 서버 전용 키로 `submit_post`를 호출합니다. 학생은 `posts`, `published_posts`, 관리자 메모·작업 기록을 직접 읽을 권한이 없습니다. 비밀 확인번호로는 상태·작성자용 답변·수정 시각만 조회합니다.
+- 4반 한마디는 `/api/board`가 같은 출처·길이·1분 간격 제한을 확인하고 서버 전용 키로 `submit_class_message`를 호출합니다. 글에는 작성자 이름·이메일·학생 번호·IP 컬럼이 없습니다. 기본 상태는 `pending`입니다.
+- 익명 사용자의 `class_messages` 직접 조회는 DB RLS가 `approved`이면서 숨기지 않은 행만 반환합니다. 승인 전 글·거절 글·숨긴 글·작업 기록은 읽을 수 없습니다. 브라우저 직접 INSERT/UPDATE/DELETE 권한도 없습니다.
+- `/admin`은 로그인 화면 주소이므로 URL 자체는 열립니다. 관리 데이터는 등록된 관리자만 RLS를 통과합니다. `moderate_class_message`와 기존 `moderate_post`도 함수 안에서 관리자 UID를 다시 확인하며, 변경자를 기록하고 동시 수정 충돌을 거부합니다.
+- 건의함의 처리 상태(`미확인 → 확인 완료 → 선생님께 전달 → 처리 완료`)와 관리자 메모·숨김·결과 확인은 유지됩니다. ‘선생님께 전달’은 실제 전달 후 관리자가 기록하며 자동 전송하지 않습니다. 과거 건의함 공개 데이터는 보존하지만 003 이후 학생에게 공개하지 않습니다.
+- 4반 한마디 관리자는 승인 대기·공개 중·거절·숨김 목록을 보고 공개 승인, 공개 취소, 거절, 숨김·해제를 할 수 있습니다. 공개 취소 즉시 익명 조회에서 빠집니다. 실제 삭제 기능은 제공하지 않아 감사 기록이 남습니다.
+- 앱은 학생 신원과 IP를 저장하지 않습니다. 무작위 쿠키의 해시를 별도 제한 테이블에 잠시 보관해 도배를 줄입니다. 호스팅/DB 업체의 인프라 로그는 별도일 수 있습니다. 개인정보나 비방은 글에 적지 않도록 안내합니다.
 
-과거에 `NEXT_PUBLIC_` 변수에 secret key를 넣었다면 그 키는 이미 브라우저 번들에 노출된 것으로 간주해야 합니다. 올바른 publishable key로 교체한 뒤 새 secret key를 발급하고, 서버 전용 `DATABASE_ADMIN_KEY`를 새 값으로 바꿔 재배포한 다음 이전 secret key를 폐기하세요.
+## Netlify 배포
 
-복구 메일이 동작하지 않을 때는 관리자 계정을 안전하게 다시 만들 수 있습니다.
-
-1. Supabase **Authentication → Users → Add user → Create new user**를 엽니다.
-2. 관리자 이메일과 새 비밀번호를 입력하고 **Auto Confirm User**를 켠 뒤 생성합니다.
-3. 새 사용자의 UID를 복사하고, 위의 `admin_members` 등록 SQL로 새 UID를 먼저 추가합니다.
-4. 새 계정으로 `/admin` 로그인을 확인한 다음에만 이전 관리자 행과 이전 Auth 사용자를 정리합니다.
-
-UID를 새로 등록해도 RLS와 두 관리자 동등 권한 구조는 그대로 유지됩니다. 비밀번호나 secret key를 SQL, 소스 코드, 개발 로그에 넣지 마세요.
-
-## 4. 환경 변수 설정
-
-```sh
-cp .env.example .env.local
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-`.env.local`에 다음 값을 채웁니다.
-
-| 변수 | 값 | 노출 범위 |
-|---|---|---|
-| SUPABASE_URL | 프로젝트 URL | 서버가 형식을 확인한 뒤 origin만 관리자 화면에 전달 |
-| SUPABASE_PUBLISHABLE_KEY | publishable key 또는 legacy anon key | 서버가 공개 키임을 확인한 뒤 관리자 화면에 전달, RLS로 권한 제한 |
-| DATABASE_ADMIN_KEY | 현재 Supabase secret key 또는 legacy service_role key | **서버 전용 비밀** |
-| COOLDOWN_SECRET | 위 명령으로 생성한 64자리 무작위 문자열 | **서버 전용 비밀** |
-| APP_ORIGIN | `http://localhost:3000` | 서버 설정 |
-
-`APP_ORIGIN`은 실제 브라우저 주소의 origin과 정확히 같아야 합니다. 끝의 `/`는 빼세요. `localhost`와 `127.0.0.1`은 다른 주소입니다. 설정을 바꾼 뒤 서버를 재시작하세요.
-
-secret/service role 키, 쿠키 서명 키, 비밀번호에는 절대로 `NEXT_PUBLIC_` 접두어를 붙이지 마세요. `.env.local`은 Git에서 제외되어 있습니다.
-
-## 5. 데이터 접근 구조
-
-- 학생은 로그인하지 않고 `/api/posts`에 제출합니다. 서버가 입력 길이·출처·도배 제한을 검사한 뒤 서버 전용 키로 제한된 `submit_post` 함수만 호출합니다.
-- `anon` 역할은 원본 `posts`, 관리자, 작업 기록을 읽을 수 없습니다. 승인·비숨김 글의 공개 필드만 별도 `published_posts`에서 읽을 수 있습니다. 관리자 메모와 요청 정보는 공개 테이블에 존재하지 않습니다.
-- 로그인만 했다고 관리자가 되지는 않습니다. `authenticated` 사용자는 `admin_members`에 자신의 UID가 등록된 경우에만 RLS를 통과해 전체 의견과 작업 기록을 읽을 수 있습니다.
-- 의견 수정은 직접 테이블 UPDATE가 아니라 `moderate_post` 함수를 거칩니다. 함수가 관리자 등록 여부를 다시 확인하고 변경자를 작업 기록에 남깁니다.
-- `/admin` 주소 자체는 로그인 화면을 보여주기 위해 공개됩니다. 인증 전에는 대시보드 데이터 요청이 실행되지 않으며, API를 직접 호출해도 DB 권한과 RLS가 내용을 차단합니다. 등록되지 않은 계정은 즉시 로그아웃됩니다.
-- 작성자 결과 조회는 서버 전용 함수가 비밀 확인번호 해시와 일치하는 글의 상태·작성자용 답변·수정 시각만 반환합니다. 원문과 관리자 메모는 반환하지 않습니다.
-
-## 6. 사용 흐름
-
-**학생**: 카테고리 → 제목 → 내용 → 선생님 전달 희망/결과 확인 희망 선택 → 제출.
-
-결과 확인을 선택한 경우에만 제출 직후 64자리 비밀 확인번호를 한 번 발급합니다. 번호는 `/result`에 붙여넣습니다. 번호를 분실하면 복구할 수 없습니다. 학생의 신원이나 연락처가 없어 개별 알림은 보내지 않습니다. 네트워크가 제출 직후 끊기면 번호를 받지 못할 수 있으며, 글 자체는 접수되었을 수 있습니다.
-
-**관리자**: `/admin` 로그인 → 의견 선택 → 처리 상태·공개 승인/취소·숨김 지정 → 메모·작성자용 답변 → 저장.
-
-- ‘선생님께 전달’ 상태는 실제 전달 후 관리자가 기록합니다. 자동 이메일·메시지 전송은 없습니다.
-- 선생님 전달 희망을 선택하지 않은 의견도 필요하면 관리자가 판단해 전달할 수 있음을 이용 안내에 명시했습니다.
-- 관리자 메모는 내부 전용입니다. 작성자용 답변은 비밀 확인번호와 공개 승인된 게시판에서 확인할 수 있습니다.
-- 공개 승인과 처리 상태는 별개입니다. 승인된 글만 `/board`에 최신순으로 표시됩니다.
-- 장난성 글은 숨기고, ‘숨긴 의견’ 필터에서 복구할 수 있습니다. 숨김은 공개 게시판에서도 즉시 제외되며 기존 확인번호 조회는 유지됩니다.
-- 상태·공개 승인/취소·메모·답변·숨김 변경은 누가 언제 바꿨는지 기록합니다. 메모/답변의 이전 본문은 감사 기록에 복제하지 않습니다.
-- 동시에 같은 의견을 수정하면 나중 저장은 거절됩니다. 입력 내용을 따로 보관하고 최신 의견을 다시 선택해야 합니다.
-
-## 7. 배포하기 — Netlify + Supabase
-
-Next.js Route Handler가 필요하므로 정적 파일 호스팅이나 `output: export`로 배포하지 마세요. Netlify는 현재 Next.js App Router와 Route Handler를 OpenNext 어댑터로 자동 지원합니다. 저장소의 `netlify.toml`은 빌드 명령과 Node/pnpm 버전만 고정하며 어댑터 버전은 고정하지 않습니다.
-
-1. 프로젝트를 본인 Git 저장소에 올립니다. `.env.local`, `node_modules`, `.next`는 제외합니다.
-2. Netlify에서 **Add new project → Import an existing project**를 선택하고 `junypark0427/class4board` 저장소를 연결합니다.
-3. Base directory는 저장소 루트로 둡니다. `netlify.toml`에 따라 빌드 명령은 `pnpm build`, Publish directory는 `.next`, Node는 22, pnpm은 11.19.0이 됩니다. 별도 Functions directory나 Next.js 플러그인은 저장소에 추가하지 않습니다.
-4. Netlify **Project configuration → Environment variables**에 `.env.example`의 다섯 변수를 추가합니다. 기존 `NEXT_PUBLIC_SUPABASE_URL`과 `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`는 삭제하고 각각 `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`로 등록합니다. 민감한 값은 `netlify.toml`이나 GitHub에 넣지 않습니다.
-5. `APP_ORIGIN`은 최종 Production URL과 정확히 같게 입력합니다(예: `https://class4board.netlify.app`, 끝 `/` 없음). Deploy Preview URL은 매번 달라지므로 운영 Supabase 비밀값을 Preview에 제공하지 않는 것을 권장합니다.
-6. 첫 배포 후 실제 Production URL을 확인해 `APP_ORIGIN`이 다르면 수정하고 **Clear cache and deploy site**로 다시 배포합니다. Supabase 설정값을 변경한 경우에도 다시 배포합니다.
-7. Supabase Authentication URL 설정의 Site URL을 최종 주소로 맞춥니다. 현재 이메일/비밀번호 로그인은 리디렉션 흐름을 사용하지 않습니다.
-8. 아래 실제 연결 점검을 마친 뒤에만 친구들에게 주소를 공유합니다.
-
-배포는 사용자의 Supabase/Netlify 계정에서 진행해야 하며, GitHub 소스 저장소와 별개로 실제 웹 서비스 배포는 아직 하지 않았습니다.
-
-## 8. 검사
+저장소 `origin/main`을 Netlify에 연결합니다. `netlify.toml`의 `pnpm build`와 `.next` publish 설정을 사용하고 별도의 Functions directory나 Next.js 플러그인을 수동으로 추가하지 않습니다. **Project configuration → Environment variables**에 위 다섯 값을 설정하고 `APP_ORIGIN`을 실제 Production URL과 일치시킨 뒤 재배포합니다. Route Handler가 있으므로 `output: export`는 사용하지 않습니다. 운영 DB에는 003 SQL을 먼저 적용하세요.
 
 ```sh
 pnpm test
 pnpm typecheck
 pnpm build
 pnpm test:bundle-security
-pnpm start
 ```
 
-자동 테스트는 메모리 PostgreSQL(PGlite)에서 실제 스키마와 역할·RLS를 적용해 권한, 동등 관리자 접근, 수정 충돌, 확인번호 조회, 도배 제한을 검사합니다. 추가 보안 검사는 client component가 환경변수를 읽지 않는지, 공개 키 검증이 secret key를 거부하는지, production 빌드 산출물에 Supabase secret 표시가 없는지 확인합니다. 실제 Supabase 인증 서비스나 Netlify 배포를 대신 검증하는 테스트는 아닙니다.
-
-**실제 연결 후 점검**
-
-- 학생으로 의견 제출 → 승인 전에는 게시판에 나타나지 않음 → 관리자 승인 후 `/board`에 표시 → 공개 취소/숨김 후 즉시 제외.
-- 로그아웃 상태에서 `/admin` → 로그인 화면만 보이며 의견 제목·내용은 응답 HTML이나 화면에 나타나지 않음.
-- 관리자 목록 REST 요청을 공개 키만으로 실행 → 권한 거부. 일반 로그인 계정 → 빈 결과 또는 관리자 화면에서 로그아웃.
-- 두 관리자 각각 로그인 → 같은 글 확인, 메모/상태 변경, 변경자 이름 확인.
-- 숨김 → 기본 목록 제외 → 숨김 필터에서 다시 표시/복구.
-- 결과 확인 희망 글의 번호로 상태/답변 조회 → 내부 메모는 미표시.
-- 결과 확인을 원하지 않은 글은 번호가 발급되지 않음.
-- 잘못된 번호나 `/posts/임의의_ID`로는 본문을 볼 수 없음.
-- 같은 브라우저에서 1분 이내 다시 제출하면 429 안내.
-- 휴대폰에서 입력, 체크박스 선택, 관리자 상세와 저장 확인.
-
-## 9. 구조
-
-```text
-app/                       학생·결과·관리자 페이지와 제출 API
-lib/                       입력 규칙, DB 타입/클라이언트, 쿠키 서명
-supabase/migrations/       DB 테이블, RLS, 제출·조회·관리 함수
-tests/                     실제 SQL 보안/권한 테스트
-docs/                      설계 변경·운영/보안 안내
-docs/legacy/               비활성 공개 화면 보관본 (.txt, 실행 안 됨)
-.env.example               환경 변수 예시
-netlify.toml               Netlify 빌드/런타임 버전 설정
-```
-
-브라우저 동작 검사 재현 방법과 검증 범위는 `docs/TESTING.md`에 있습니다.
-
-## 참고한 공식 문서
-
-- [Next.js 설치](https://nextjs.org/docs/app/getting-started/installation)
-- [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)
-- [Supabase 데이터베이스 함수](https://supabase.com/docs/guides/database/functions)
-- [Supabase 공개 키와 비밀 키](https://supabase.com/docs/guides/getting-started/api-keys)
-- [Netlify의 Next.js 지원](https://docs.netlify.com/build/frameworks/framework-setup-guides/nextjs/overview/)
-- [Netlify 파일 기반 설정](https://docs.netlify.com/build/configure-builds/file-based-configuration/)
+배포 후 학생으로 건의함을 제출해 다른 학생에게 노출되지 않는지, 한마디를 제출해 승인 전 `/board`에 나타나지 않는지 확인하세요. 두 관리자 계정으로 각각 로그인해 승인·취소·숨김과 작업 기록을 확인하고, 로그아웃 상태에서 관리자 데이터 직접 조회도 차단되는지 점검합니다. 자동 테스트는 PGlite에 실제 마이그레이션을 적용해 이 권한을 검사합니다.

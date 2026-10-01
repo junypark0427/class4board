@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { deviceToken, deviceHash } from '../lib/cooldown';
-import { postInput } from '../lib/shared';
+import { classMessageInput, postInput } from '../lib/shared';
 
 const db = new PGlite();
 const president = '00000000-0000-4000-8000-000000000001';
@@ -26,6 +26,7 @@ before(async () => {
     insert into auth.users values ('${president}'),('${deputy}'),('${outsider}');`);
   await db.exec(await readFile(new URL('../supabase/migrations/001_suggestion_box.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/002_admin_approved_board.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/003_class_messages.sql', import.meta.url), 'utf8'));
   await db.query('insert into public.admin_members values ($1,$2),($3,$4)', [president,'반장',deputy,'부반장']);
 });
 after(async () => { await db.close(); });
@@ -43,7 +44,7 @@ test('anonymous cannot read content, members, audit, receipts or bypass submissi
     await assert.rejects(db.query(`select * from public.${table}`), /permission denied/);
   }
   await assert.rejects(db.exec('select * from private.receipts'), /permission denied/);
-  assert.equal((await db.query('select * from public.published_posts')).rows.length,0);
+  await assert.rejects(db.query('select * from public.published_posts'), /permission denied/);
   await assert.rejects(db.exec("insert into public.posts(category,title,content) values('질문','제목','비인가 직접 제출')"), /permission denied/);
   await assert.rejects(db.query('select public.submit_post($1,$2,$3,$4,$5,$6,$7)', ['질문','제목','비인가 직접 제출',false,false,'c'.repeat(64),null]), /permission denied/);
   await assert.rejects(db.query('select * from public.lookup_result($1)',['b'.repeat(64)]), /permission denied/);
@@ -67,15 +68,12 @@ test('both admins have equal access; notes are private and changes are attribute
   await assert.rejects(db.exec('delete from public.admin_actions'), /permission denied/);
   await assert.rejects(db.exec("update public.posts set status='completed'"), /permission denied/);
 });
-test('anonymous sees only the approved safe projection with current status and reply', async () => {
+test('historically approved suggestions remain stored but are not student-readable', async () => {
   await asRole('anon');
-  const result = await db.query<Record<string,unknown>>('select * from public.published_posts');
-  assert.equal(result.rows.length,1);
-  assert.deepEqual(Object.keys(result.rows[0]).sort(),['category','content','created_at','post_id','published_at','reply','status','title','updated_at']);
-  assert.equal(result.rows[0].status,'forwarded');
-  assert.equal(result.rows[0].reply,'선생님께 전달했어요.');
-  await assert.rejects(db.query('select admin_note from public.published_posts'), /does not exist/);
+  await assert.rejects(db.query('select * from public.published_posts'), /permission denied/);
   await assert.rejects(db.query('select * from public.posts'), /permission denied/);
+  await asRole('postgres');
+  assert.equal((await db.query('select * from public.published_posts')).rows.length,1);
 });
 test('stale saves are rejected and hide/unhide is audited without changing workflow', async () => {
   await asRole('authenticated',president);
@@ -83,7 +81,7 @@ test('stale saves are rejected and hide/unhide is audited without changing workf
   await db.query('select public.moderate_post($1,3,$2,true,true,$3,$4)',[postId,'forwarded','전달 완료 메모','선생님께 전달했어요.']);
   assert.equal((await db.query<{hidden:boolean}>('select hidden from public.posts')).rows[0].hidden,true);
   await asRole('anon');
-  assert.equal((await db.query('select * from public.published_posts')).rows.length,0);
+  await assert.rejects(db.query('select * from public.published_posts'), /permission denied/);
   await asRole('authenticated',president);
   await db.query('select public.moderate_post($1,4,$2,false,false,$3,$4)',[postId,'completed','전달 완료 메모','처리했어요.']);
   const history = await db.query<{changes:object}>('select changes from public.admin_actions order by id');
@@ -114,6 +112,48 @@ test('input rejects identity fields, old public visibility and invalid lengths',
   const value = {category:'기타',title:'좋은 생각',content:'우리 반을 위한 의견',teacher_requested:false,reply_requested:true};
   assert.equal(postInput.safeParse(value).success,true);
   for (const extra of [{email:'student@example.com'},{name:'name'},{visibility:'public'},{content:'a'.repeat(2001)},{website:'spam'}]) assert.equal(postInput.safeParse({...value,...extra}).success,false);
+});
+test('class messages stay private until an admin approves and are hidden immediately on cancellation', async () => {
+  await asRole('service_role');
+  await db.query('select public.submit_class_message($1,$2)', ['우리 모두 오늘도 힘내요!', 'f'.repeat(64)]);
+  await assert.rejects(db.query('select public.submit_class_message($1,$2)', ['두 번째 한마디', 'f'.repeat(64)]), /cooldown/);
+  await asRole('anon');
+  assert.equal((await db.query('select * from public.class_messages')).rows.length, 0);
+  await assert.rejects(db.exec("insert into public.class_messages(content) values('직접 제출')"), /permission denied/);
+  await assert.rejects(db.exec('select * from public.class_message_actions'), /permission denied/);
+  await assert.rejects(db.query('select public.submit_class_message($1,$2)', ['직접 제출', 'g'.repeat(64)]), /permission denied/);
+  await assert.rejects(db.query('select public.moderate_class_message($1,1,$2,false)', ['00000000-0000-4000-8000-000000000010','approved']), /permission denied/);
+  await asRole('authenticated', outsider);
+  assert.equal((await db.query('select * from public.class_messages')).rows.length, 0);
+  await assert.rejects(db.query('select public.moderate_class_message($1,1,$2,false)', ['00000000-0000-4000-8000-000000000010','approved']), /not_authorized/);
+  await asRole('authenticated', president);
+  const { rows } = await db.query<{id:string;version:number}>('select id,version from public.class_messages');
+  const id = rows[0].id;
+  await assert.rejects(db.query('update public.class_messages set moderation_state=$1 where id=$2', ['approved',id]), /permission denied/);
+  await db.query('select public.moderate_class_message($1,1,$2,false)', [id,'approved']);
+  await asRole('anon');
+  const publicRows = await db.query<Record<string,unknown>>('select * from public.class_messages');
+  assert.equal(publicRows.rows.length, 1);
+  assert.equal(publicRows.rows[0].content, '우리 모두 오늘도 힘내요!');
+  await asRole('authenticated', deputy);
+  await assert.rejects(db.query('select public.moderate_class_message($1,1,$2,false)', [id,'pending']), /conflict_reload/);
+  await db.query('select public.moderate_class_message($1,2,$2,false)', [id,'pending']);
+  const audit = await db.query<{actor_name:string;changes:object}>('select actor_name,changes from public.class_message_actions order by id');
+  assert.deepEqual(audit.rows.map(action => action.actor_name), ['반장','부반장']);
+  assert.match(JSON.stringify(audit.rows), /approved/);
+  await asRole('anon');
+  assert.equal((await db.query('select * from public.class_messages')).rows.length, 0);
+  await asRole('authenticated', president);
+  await db.query('select public.moderate_class_message($1,3,$2,false)', [id,'approved']);
+  await db.query('select public.moderate_class_message($1,4,$2,true)', [id,'approved']);
+  await asRole('anon');
+  assert.equal((await db.query('select * from public.class_messages')).rows.length, 0);
+});
+test('class message schema rejects identity fields and unsafe lengths', () => {
+  assert.equal(classMessageInput.safeParse({content:'수고했어!'}).success, true);
+  for (const value of [{content:'a'}, {content:'a'.repeat(501)}, {content:'수고했어!',student_number:4}, {content:'수고했어!',email:'x@y.kr'}]) {
+    assert.equal(classMessageInput.safeParse(value).success, false);
+  }
 });
 test('signed cooldown cookie rejects tampering/expiration without using IP', () => {
   const secret='test-secret'.repeat(4);const now=1800000000000;

@@ -10,6 +10,15 @@ export const postInput = z.object({
   website: z.string().max(0).optional()
 }).strict();
 
+export const classMessageInput = z.object({
+  content: z.string().trim().min(2, '한마디는 2자 이상 적어주세요.').max(500, '한마디는 500자까지 쓸 수 있어요.'),
+  website: z.string().max(0).optional()
+}).strict();
+export type ClassMessage = {
+  id: string; content: string; moderation_state: 'pending' | 'approved' | 'rejected';
+  hidden: boolean; version: number; created_at: string; moderated_at: string | null;
+};
+
 export type Post = {
   id: string; category: string; title: string; content: string;
   teacher_requested: boolean; reply_requested: boolean;

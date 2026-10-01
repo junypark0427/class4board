@@ -8,12 +8,16 @@ export type Database = {
       published_posts: Table<import('./shared').PublicPost>;
       admin_members: Table<{user_id:string;display_name:string}>;
       admin_actions: Table<{id:number;post_id:string;actor_id:string|null;actor_name:string;changes:Json;created_at:string}>;
+      class_messages: Table<import('./shared').ClassMessage>;
+      class_message_actions: Table<{id:number;message_id:string;actor_id:string|null;actor_name:string;changes:Json;created_at:string}>;
     };
     Views: { [_ in never]: never };
     Functions: {
       submit_post: { Args: {p_category:string;p_title:string;p_content:string;p_teacher_requested:boolean;p_reply_requested:boolean;p_device_hash:string;p_receipt_hash:string|null}; Returns: undefined };
       lookup_result: { Args: {p_receipt_hash:string}; Returns: {status:Post['status'];reply:string;updated_at:string}[] };
       moderate_post: { Args: {p_id:string;p_version:number;p_status:string;p_hidden:boolean;p_is_public:boolean;p_admin_note:string;p_reply:string}; Returns: undefined };
+      submit_class_message: { Args: {p_content:string;p_device_hash:string}; Returns: undefined };
+      moderate_class_message: { Args: {p_id:string;p_version:number;p_state:string;p_hidden:boolean}; Returns: undefined };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
